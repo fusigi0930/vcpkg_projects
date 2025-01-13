@@ -17,7 +17,10 @@ struct SRes {
 void cv_fps(int device, std::string fmt, std::string res) {
 	std::map<std::string, SRes> mapRes;
 	mapRes["4k"] = { 3840, 2160 };
+	mapRes["2k"] = { 2560, 1440 };
 	mapRes["1080"] = { 1920, 1080 };
+	mapRes["720"] = { 1280, 720 };
+	mapRes["360"] = { 640, 360 };
 	mapRes["120"] = { 160, 120 };
 	mapRes["144"] = { 176, 144 };
 	mapRes["240"] = { 320, 240 };
