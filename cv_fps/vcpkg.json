@@ -1,6 +1,10 @@
 {
   "dependencies": [
+    "argparse",
     "opencv",
-    "argparse"
+	{
+		"name": "libuvc",
+		"platform": "!windows"
+	}
   ]
 }

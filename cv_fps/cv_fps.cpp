@@ -1,8 +1,10 @@
 #include "cv_utils.h"
 #include <argparse/argparse.hpp>
+#include "uvc_utils.h"
 
 #include <algorithm>
 #include <random>
+#include <sstream>
 
 static void calc_fps(cv::VideoCapture &cam, SInfo &info) {
 	cv::Mat f;
@@ -15,52 +17,113 @@ static void calc_fps(cv::VideoCapture &cam, SInfo &info) {
 
 	uint64_t end_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-	double fps = static_cast<double>(1000.0) / ((static_cast<double>(end_time) - static_cast<double>(start_time)) / 1000000.0);
-	std::cout << "fps: " << fps << std::endl;
+	long double fps = static_cast<long double>(1000.0) / ((static_cast<long double>(end_time) - static_cast<long double>(start_time)) / 1000000.0);
+	std::cout << "fps: " << std::setprecision(10) << fps << std::endl;
 }
 
-int cv_fps(cv::VideoCapture &cam, SInfo &info) {
-	if (!cam.isOpened()) {
+#define FRAME_COUNT 450
+static void calc_fps(cv::VideoCapture &cam) {
+	cv::Mat f;
+	std::cout << std::dec;
+	uint64_t start_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	for (int i = 0; i < FRAME_COUNT; i++) {
+		cam.read(f);
+		//std::cout << "\rframe: " << i << " " << f.size().width << "x" << f.size().height;
+	}
+	uint64_t end_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
+	long double fps = static_cast<long double>(FRAME_COUNT) / ((static_cast<long double>(end_time) - static_cast<long double>(start_time)) / 1000000.0);
+	std::cout << "fps: " << std::setprecision(10) << fps << std::endl;
+}
+
+int cv_fps(void *pCam, void *pInfo) {
+	cv::VideoCapture *cam = reinterpret_cast<cv::VideoCapture*>(pCam);
+	SInfo *info = reinterpret_cast<SInfo*>(pInfo);
+	if (nullptr == cam || nullptr == info) {
+		return DEVICE_ERROR;
+	}
+
+	if (!cam->isOpened()) {
 		std::cerr << "open camera failed" << std::endl;
 		return DEVICE_ERROR;		
 	}
 
-	if (info.type == "list") {
-		for (std::vector<std::string>::iterator p=info.vtFmt.begin(); p!=info.vtFmt.end(); p++) {
-			int ret = setCVFormat(cam, *p);
+	if (info->type == "list") {
+		for (std::vector<std::string>::iterator p=info->vtFmt.begin(); p!=info->vtFmt.end(); p++) {
+			int ret = setCVFormat(*cam, *p);
 			if (ret != SUCCESS) {
 				return ret;
 			}
 
-			for (std::vector<std::string>::iterator q=info.vtRes.begin(); q!=info.vtRes.end(); q++) {
-				ret = setCVRes(cam, *q);
+			for (std::vector<std::string>::iterator q=info->vtRes.begin(); q!=info->vtRes.end(); q++) {
+				ret = setCVRes(*cam, *q);
 				if (ret != SUCCESS) {
 					return ret;
 				}
 
-				calc_fps(cam, info);
+				calc_fps(*cam, *info);
 			}			
 		}
 	}
-	else if (info.type == "random") {
+	else if (info->type == "random") {
 		std::vector<std::string> outFmt, outRes;
-		std::sample(info.vtFmt.begin(), info.vtFmt.end(), std::back_inserter(outFmt), 1, std::mt19937{std::random_device{}()});
-		std::sample(info.vtRes.begin(), info.vtRes.end(), std::back_inserter(outRes), 1, std::mt19937{std::random_device{}()});
+		std::sample(info->vtFmt.begin(), info->vtFmt.end(), std::back_inserter(outFmt), 1, std::mt19937{std::random_device{}()});
+		std::sample(info->vtRes.begin(), info->vtRes.end(), std::back_inserter(outRes), 1, std::mt19937{std::random_device{}()});
 		
-		int ret = setCVFormat(cam, *outFmt.begin());
+		int ret = setCVFormat(*cam, *outFmt.begin());
 		if (ret != SUCCESS) {
 			return ret;
 		}
-		ret = setCVRes(cam, *outRes.begin());
+		ret = setCVRes(*cam, *outRes.begin());
 		if (ret != SUCCESS) {
 			return ret;
 		}
 
-		calc_fps(cam, info);
+		calc_fps(*cam, *info);
 	}
 
 	return SUCCESS;
 }
+
+int full_fps(void *pCam, void *pSupport) {
+	cv::VideoCapture *cam = reinterpret_cast<cv::VideoCapture*>(pCam);
+	std::vector<SSupport> *support = reinterpret_cast<std::vector<SSupport> *>(pSupport);
+	if (nullptr == cam || nullptr == support) {
+		return DEVICE_ERROR;
+	}
+
+	if (!cam->isOpened()) {
+		std::cerr << "open camera failed" << std::endl;
+		return DEVICE_ERROR;		
+	}
+
+	for (std::vector<SSupport>::iterator p=support->begin(); p!=support->end(); p++) {
+		int ret = setCVFormat(*cam, p->szFmt);
+		if (ret != SUCCESS) {
+			std::cerr << __FUNCTION__ << ":set cv format failed" << std::endl;
+			continue;
+		}
+
+		for (std::vector<std::string>::iterator q=p->vtRes.begin(); q!=p->vtRes.end(); q++) {
+            std::stringstream s;
+            s << std::hex << *q;
+            uint32_t mix_res;
+            s >> mix_res;
+            int w = mix_res >> 16;
+            int h = mix_res & 0xffff;
+			ret = setCVRes(*cam, w, h);
+			if (ret != SUCCESS) {
+				std::cerr << __FUNCTION__ << ":set cv res failed" << std::endl;
+				continue;
+			}
+			std::cout << std::dec << "calc " << p->szFmt << " " << w << " x " << h << " ... ";
+			calc_fps(*cam);
+		}			
+	}
+
+	return SUCCESS;
+}
+
 
 # if 0
 int main(int argc, char* argv[]) {
