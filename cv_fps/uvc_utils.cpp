@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <cstdint>
 
 static std::string genRes(int w, int h) {
     uint32_t r = static_cast<uint32_t>(w) << 16 | static_cast<uint32_t>(h);
