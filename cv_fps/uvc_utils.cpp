@@ -123,6 +123,7 @@ void suvc_close(SUvc *uvc) {
 }
 
 #else
+#if (WIN_UVC_BACK == 0)
 int suvc_init(SUvc *uvc, int vid, int pid) {
 	if (nullptr == uvc) {
 		std::cerr << "uvc pointer is null" << std::endl;
@@ -306,6 +307,182 @@ void suvc_close(SUvc *uvc) {
 
 	CoUninitialize();
 }
+#elif (WIN_UVC_BACK == 1)
+int suvc_init(SUvc *uvc, int vid, int pid) {
+	if (nullptr == uvc) {
+		std::cerr << "uvc pointer is null" << std::endl;
+		return SUVC_ERROR;
+	}
+	uvc->pid = pid;
+	uvc->vid = vid;
+	HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+	if (FAILED(hr)) {
+		std::cerr << "co initailize failed" << std::endl;
+		return SUVC_ERROR;
+	}
+	uvc->bCoinit = true;
+	hr = MFStartup(MF_VERSION, MFSTARTUP_FULL);
+	if (FAILED(hr)) {
+		std::cerr << "mfstartup failed: " << std::hex << hr << std::dec << std::endl;
+		return SUVC_ERROR;
+	}
+	uvc->bMfStart = true;
+	hr = MFCreateAttributes(&uvc->pAttr, 1);
+	if (FAILED(hr)) {
+		std::cerr << "mf create attributes failed: " << std::hex << hr << std::dec << std::endl;
+		return SUVC_ERROR;
+	}
+
+	uvc->pAttr->SetUINT32(MF_SOURCE_READER_DISCONNECT_MEDIASOURCE_ON_SHUTDOWN, TRUE);
+	uvc->pAttr->SetUINT32(MF_SOURCE_READER_ENABLE_ADVANCED_VIDEO_PROCESSING, FALSE);
+	hr = uvc->pAttr->SetGUID(
+		MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+        MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
+	if (FAILED(hr)) {
+		std::cerr << "attributes set guid failed: " << std::hex << hr << std::dec << std::endl;
+		return SUVC_ERROR;
+	}
+
+	hr = MFEnumDeviceSources(uvc->pAttr, &uvc->ppDevices, &uvc->count);
+	if (FAILED(hr)) {
+		std::cerr << "enum devices failed: " << std::hex << hr << std::dec << std::endl;
+		return SUVC_ERROR;
+	}
+	if (0 >= uvc->count) {
+		std::cerr << "no uvc device found!" << std::endl;
+		return SUVC_ERROR;
+	}
+
+	return SUVC_SUCCESS;
+}
+
+int suvc_get_support(SUvc *uvc, std::vector<SSupport> &vtSupport) {
+	if (nullptr == uvc) {
+		std::cerr << "uvc pointer is null" << std::endl;
+		return SUVC_ERROR;
+	}
+
+	for (uint32_t i=0; i<uvc->count; i++) {
+		WCHAR *link = nullptr;
+		uint32_t num = 0;
+		HRESULT hr = uvc->ppDevices[i]->GetAllocatedString(
+			MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK,
+			&link,
+			&num);
+		if (FAILED(hr) || nullptr == link) {
+			std::cerr << "get allocate string failed: " << std::hex << hr << std::dec << std::endl;
+			continue;
+		}
+
+		std::wstringstream s;
+		s << L"vid_" << std::hex << std::setw(4) << std::setfill(L'0') << uvc->vid
+		  << std::setw(0) << L"&pid_" << std::setw(4) << std::setfill(L'0') << uvc->pid;
+
+		if (link != nullptr && nullptr == wcsstr(link, s.str().c_str())) {
+			std::cerr << "vid, pid doesn't match!, next!" << std::endl;
+			CoTaskMemFree(link);
+			continue;
+		}
+		CoTaskMemFree(link);
+
+		IMFMediaSource* pSource = nullptr;
+		IMFSourceReader* pReader = nullptr;
+		hr = uvc->ppDevices[i]->ActivateObject(IID_PPV_ARGS(&pSource));
+		if (FAILED(hr)) {
+			std::cerr << "activate object failed: " << std::hex << hr << std::dec << std::endl;
+			continue;
+		}
+
+		IAMVideoProcAmp* pProcAmp = nullptr;
+		hr = pSource->QueryInterface(IID_PPV_ARGS(&pProcAmp));
+		if (SUCCEEDED(hr)) {
+			long value = 1;
+			pProcAmp->Set(VideoProcAmp_BacklightCompensation, value, VideoProcAmp_Flags_Manual);
+			pProcAmp->Release();
+		}
+
+		hr = MFCreateSourceReaderFromMediaSource(pSource, uvc->pAttr, &pReader);
+		if (FAILED(hr)) {
+			std::cerr << "create reader failed: " << std::hex << hr << std::dec << std::endl;
+			pSource->Release();
+			continue;
+		}
+
+		DWORD index=0;
+		do {
+			IMFMediaType* pType = nullptr;
+            hr = pReader->GetNativeMediaType(
+                static_cast<DWORD>(MF_SOURCE_READER_FIRST_VIDEO_STREAM),
+                index,
+                &pType);
+
+			if (MF_E_NO_MORE_TYPES == hr) {
+				break;
+			}
+			else if (FAILED(hr)) {
+				index++;
+				continue;
+			}
+
+			GUID Type = {0};
+			pType->GetGUID(MF_MT_MAJOR_TYPE, &Type);
+			if (MFMediaType_Video != Type) {
+				pType->Release();
+				index++;
+				continue;
+			}
+
+			pType->GetGUID(MF_MT_SUBTYPE, &Type);
+			SSupport sup;
+			if (MFVideoFormat_MJPG == Type) {
+				sup.szFmt = "mjpeg";
+			}
+			else if (MFVideoFormat_YUY2 == Type) {
+				sup.szFmt = "yuv422";
+			}
+
+			UINT32 w=0, h=0, numerator=0, denominator=0;
+			MFGetAttributeSize(pType, MF_MT_FRAME_SIZE, &w, &h);
+			MFGetAttributeRatio(pType, MF_MT_FRAME_RATE, &numerator, &denominator);
+
+			double rate = static_cast<double>(numerator) / static_cast<double>(denominator);
+			sup.vtRes.push_back(genFinalInfo(rate, genRes(static_cast<int>(w), static_cast<int>(h))));
+			vtSupport.push_back(sup);
+
+			pType->Release();
+			index++;
+		} while (SUCCEEDED(hr));
+	}
+	return SUVC_SUCCESS;
+}
+
+void suvc_close(SUvc *uvc) {
+	if (nullptr == uvc) {
+		return;
+	}
+	if (uvc->ppDevices) {
+		for (uint32_t i=0; i<uvc->count; i++) {
+			uvc->ppDevices[i]->Release();
+			uvc->ppDevices[i] = nullptr;
+		}
+		CoTaskMemFree(uvc->ppDevices);
+		uvc->ppDevices = nullptr;
+	}
+	if (uvc->pAttr) {
+		uvc->pAttr->Release();
+		uvc->pAttr = nullptr;
+	}
+	if (uvc->bMfStart) {
+		MFShutdown();
+		uvc->bMfStart = false;
+	}
+	if (uvc->bCoinit) {
+		CoUninitialize();
+		uvc->bCoinit = false;
+	}
+}
+
+#endif
 #endif
 
 std::tuple<double, std::string> procFinalInfo(std::string info) {

@@ -10,6 +10,10 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	find_package(libuvc CONFIG REQUIRED)
 endif()
 
+if (NOT DEFINED CMAKE_WIN_BACK)
+	set(CMAKE_WIN_BACK "MSMF")
+endif()
+
 set(CV_TOOLS
 	cv_fps.cpp
 	main.cpp
@@ -27,5 +31,13 @@ target_link_libraries(cv_fps PRIVATE argparse::argparse)
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
 	target_link_libraries(cv_fps PRIVATE uvc)
 else()
-	target_link_libraries(cv_fps PRIVATE ole32.lib)
+	if (CMAKE_WIN_BACK STREQUAL "DSHOW")
+		message("use dshow library...")
+		target_compile_definitions(cv_fps PRIVATE -DWIN_UVC_BACK=0)
+		target_link_libraries(cv_fps PRIVATE ole32.lib)
+	elseif (CMAKE_WIN_BACK STREQUAL "MSMF")
+		message("use msmf library...")
+		target_compile_definitions(cv_fps PRIVATE -DWIN_UVC_BACK=1)
+		target_link_libraries(cv_fps PRIVATE mf.lib mfplat.lib mfuuid.lib mfreadwrite.lib)
+	endif()
 endif()

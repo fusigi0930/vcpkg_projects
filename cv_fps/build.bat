@@ -9,6 +9,7 @@ if "%~1" == "" (
 set PATH=%MINGW_PATH%;%PATH%
 
 cmake -B build_win -G Ninja ^
+	-DCMAKE_WIN_BACK=MSMF ^
 	-DCMAKE_BUILD_TYPE='Release' ^
 	-DVCPKG_BUILD_TYPE='Release' ^
 	-DVCPKG_TARGET_TRIPLET=x64-mingw-static ^

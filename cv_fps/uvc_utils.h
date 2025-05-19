@@ -14,7 +14,8 @@ struct SUvc {
     uvc_device_handle_t *devh;
 };
 #else
-#  include <dshow.h>
+#  if (WIN_UVC_BACK == 0)
+#    include <dshow.h>
 struct SUvc {
 	ICreateDevEnum *pDevEnum;
 	IEnumMoniker *pEnum;
@@ -29,6 +30,24 @@ struct SUvc {
 	int pid;
 	int vid;
 };
+
+#  elif (WIN_UVC_BACK == 1)
+#    include <mfapi.h>
+#    include <mfidl.h>
+#    include <mfreadwrite.h>
+#    include <mferror.h>
+#    include <strmif.h>
+
+struct SUvc {
+	bool bCoinit;
+	bool bMfStart;
+	IMFAttributes *pAttr;
+	IMFActivate **ppDevices;
+	uint32_t count;
+	int pid;
+	int vid;
+};
+#  endif
 #endif
 
 #define SUVC_SUCCESS 0
