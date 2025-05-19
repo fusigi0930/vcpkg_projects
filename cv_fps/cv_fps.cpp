@@ -22,7 +22,7 @@ static void calc_fps(cv::VideoCapture &cam, SInfo &info) {
 }
 
 #define FRAME_COUNT 450
-static void calc_fps(cv::VideoCapture &cam) {
+static void calc_fps(cv::VideoCapture &cam, double rate = 0.0) {
 	cv::Mat f;
 	std::cout << std::dec;
 	uint64_t start_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -33,7 +33,7 @@ static void calc_fps(cv::VideoCapture &cam) {
 	uint64_t end_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
 	long double fps = static_cast<long double>(FRAME_COUNT) / ((static_cast<long double>(end_time) - static_cast<long double>(start_time)) / 1000000.0);
-	std::cout << "fps: " << std::setprecision(10) << fps << std::endl;
+	std::cout << "fps: " << std::setprecision(10) << fps << ", support rate: " << rate <<std::endl;
 }
 
 int cv_fps(void *pCam, void *pInfo) {
@@ -105,8 +105,11 @@ int full_fps(void *pCam, void *pSupport) {
 		}
 
 		for (std::vector<std::string>::iterator q=p->vtRes.begin(); q!=p->vtRes.end(); q++) {
+			double rate;
+			std::string res;
+			std::tie(rate, res) = procFinalInfo(*q);
             std::stringstream s;
-            s << std::hex << *q;
+            s << std::hex << res;
             uint32_t mix_res;
             s >> mix_res;
             int w = mix_res >> 16;
@@ -117,7 +120,7 @@ int full_fps(void *pCam, void *pSupport) {
 				continue;
 			}
 			std::cout << std::dec << "calc " << p->szFmt << " " << w << " x " << h << " ... ";
-			calc_fps(*cam);
+			calc_fps(*cam, rate);
 		}			
 	}
 

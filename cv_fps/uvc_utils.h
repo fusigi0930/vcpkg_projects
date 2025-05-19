@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <string>
+#include <cstdint>
+#include <tuple>
 
 #if !defined(_WIN32)
 #  include "libuvc/libuvc.h"
@@ -43,5 +45,6 @@ int suvc_init(SUvc *uvc, int vid, int pid);
 int suvc_get_support(SUvc *uvc, std::vector<SSupport> &vtSupport);
 void suvc_close(SUvc *uvc);
 int suvc_list(void* pVid, void* pPid);
+std::tuple<double, std::string> procFinalInfo(std::string info);
 
 #endif
