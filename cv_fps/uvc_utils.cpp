@@ -90,7 +90,7 @@ int suvc_get_support(SUvc *uvc, std::vector<SSupport> &vtSupport) {
         std::cout << "get format: " << sup.szFmt << std::endl;
         uvc_frame_desc_t *frame_desc = format_desc->frame_descs;
         while (nullptr != frame_desc) {
-			double rate = 10000000.0 / frame_desc->intervals[0];
+			double rate = 10000000.0 / frame_desc->dwDefaultFrameInterval;
             std::string r = genFinalInfo(rate, genRes(frame_desc->wWidth, frame_desc->wHeight));
             if (!r.empty()) {
                 sup.vtRes.push_back(r);
