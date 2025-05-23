@@ -25,15 +25,28 @@ static void calc_fps(cv::VideoCapture &cam, SInfo &info) {
 static void calc_fps(cv::VideoCapture &cam, double rate = 0.0) {
 	cv::Mat f;
 	std::cout << std::dec;
-	uint64_t start_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-	for (int i = 0; i < FRAME_COUNT; i++) {
+	int max_count = FRAME_COUNT;
+	int ignore_frame_count = 300;
+	if (0.0 != rate) {
+		cam.set(cv::CAP_PROP_FPS, rate);
+		max_count = static_cast<int>(rate) * 20;
+		ignore_frame_count = static_cast<int>(rate) * 10;
+	}
+
+	// drop frames
+	for (int i = 0; i < ignore_frame_count; i++) {
 		cam.read(f);
-		//std::cout << "\rframe: " << i << " " << f.size().width << "x" << f.size().height;
+	}
+	
+	uint64_t start_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	for (int i = 0; i < max_count; i++) {
+		cam.read(f);
+
 	}
 	uint64_t end_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-	long double fps = static_cast<long double>(FRAME_COUNT) / ((static_cast<long double>(end_time) - static_cast<long double>(start_time)) / 1000000.0);
-	std::cout << "fps: " << std::setprecision(10) << fps << ", support rate: " << rate <<std::endl;
+	long double fps = static_cast<long double>(FRAME_COUNT) / (static_cast<long double>(end_time -start_time) / 1000000.0);
+	std::cout << "fps: " << std::setprecision(10) << fps << std::endl;
 }
 
 int cv_fps(void *pCam, void *pInfo) {
@@ -119,7 +132,7 @@ int full_fps(void *pCam, void *pSupport) {
 				std::cerr << __FUNCTION__ << ":set cv res failed" << std::endl;
 				continue;
 			}
-			std::cout << std::dec << "calc " << p->szFmt << " " << w << " x " << h << " ... ";
+			std::cout << std::dec << "calc " << p->szFmt << " " << w << " x " << h << ", rate=" << rate << " ... " ;
 			calc_fps(*cam, rate);
 		}			
 	}

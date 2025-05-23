@@ -5,8 +5,7 @@
 		"name": "opencv"
 	},
 	{
-		"name": "libuvc",
-		"platform": "!windows"
+		"name": "libuvc"
 	}
   ]
 }

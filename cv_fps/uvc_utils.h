@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <tuple>
 
-#if !defined(_WIN32)
+#if 1
 #  include "libuvc/libuvc.h"
 struct SUvc {
     uvc_context_t *ctx;

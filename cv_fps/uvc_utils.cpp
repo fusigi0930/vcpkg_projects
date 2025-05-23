@@ -43,7 +43,7 @@ static std::string genFinalInfo(double rate, std::string res) {
 	return s.str();
 }
 
-#if !defined(_WIN32)
+#if 1
 int suvc_init(SUvc *uvc, int vid, int pid) {
     if (nullptr == uvc)
         return SUVC_ERROR;
@@ -53,16 +53,21 @@ int suvc_init(SUvc *uvc, int vid, int pid) {
         std::cerr << "uvc_init failed" << std::endl;
         return SUVC_ERROR;
     }
- 
+	std::cout << uvc->dev << std::endl;
     res = uvc_find_device(uvc->ctx, &uvc->dev, vid, pid, nullptr);
     if (0 > res) {
         std::cerr << "uvc_find_device failed" << std::endl;
         return SUVC_ERROR;
     }
 
-    res = uvc_open(uvc->dev, &uvc->devh);
+#ifdef _WIN32
+	std::cout << uvc->dev << std::endl;
+    res = uvc_open(uvc->dev, &uvc->devh, 0);
+#else
+	res = uvc_open(uvc->dev, &uvc->devh);
+#endif
     if (0 > res) {
-        std::cerr << "uvc_open failed" << std::endl << uvc->devh;
+        std::cerr << "uvc_open failed" << res << std::endl << uvc->devh;
         return SUVC_ERROR;
     }
 
@@ -83,14 +88,13 @@ int suvc_get_support(SUvc *uvc, std::vector<SSupport> &vtSupport) {
                 sup.szFmt = "mjpeg";
                 break;
             default:
-                std::cout << "type: " << format_desc->bDescriptorSubtype << std::endl;
                 sup.szFmt = "yuv422";
                 break;
         }
         std::cout << "get format: " << sup.szFmt << std::endl;
         uvc_frame_desc_t *frame_desc = format_desc->frame_descs;
         while (nullptr != frame_desc) {
-			double rate = 10000000.0 / frame_desc->intervals[0];
+			double rate = 10000000.0 / frame_desc->dwDefaultFrameInterval;
             std::string r = genFinalInfo(rate, genRes(frame_desc->wWidth, frame_desc->wHeight));
             if (!r.empty()) {
                 sup.vtRes.push_back(r);
