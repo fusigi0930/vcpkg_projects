@@ -20,6 +20,6 @@ cmake -B build_win -G Ninja ^
 	-DVCPKG_OVERLAY_PORTS=local_ports ^
 	-DVCPKG_BINARY_SOURCES="clear;files,c:/users/coder/project/vcpkg_cache,readwrite"
 
-cmake --build build_win -j8
+cmake --build build_win -j
 
 set PATH=%ORI_PATH%

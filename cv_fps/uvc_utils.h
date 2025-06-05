@@ -5,6 +5,7 @@
 #include <string>
 #include <cstdint>
 #include <tuple>
+#include <map>
 
 #if !defined(_WIN32)
 #  include "libuvc/libuvc.h"
@@ -55,13 +56,21 @@ struct SUvc {
 
 #define FUNC_UVC        "uvc"
 
+struct SRes {
+	int w;
+	int h;
+	double rate;
+};
+
+typedef std::map<std::string, std::vector<SRes> > mapSupport;
+typedef std::pair<std::string, std::vector<SRes> > pairRes;
 struct SSupport {
-    std::string szFmt;
-    std::vector<std::string> vtRes;
+	int device;
+	mapSupport mapSup;
 };
 
 int suvc_init(SUvc *uvc, int vid, int pid);
-int suvc_get_support(SUvc *uvc, std::vector<SSupport> &vtSupport);
+int suvc_get_support(SUvc *uvc, SSupport &support);
 void suvc_close(SUvc *uvc);
 int suvc_list(void* pVid, void* pPid);
 std::tuple<double, std::string> procFinalInfo(std::string info);

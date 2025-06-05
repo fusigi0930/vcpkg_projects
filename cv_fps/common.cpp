@@ -57,6 +57,10 @@ int setCVFormat(cv::VideoCapture &cam, std::string fmt) {
 		cam.set(cv::CAP_PROP_CONVERT_RGB, 0);
 		cam.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('Y', 'U', 'Y', 'V'));
 	}
+	else if (fmt == "nv12") {
+		cam.set(cv::CAP_PROP_CONVERT_RGB, 0);
+		cam.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('N', 'V', '1', '2'));
+	}
 
 	return SUCCESS;
 }

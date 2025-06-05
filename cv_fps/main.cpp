@@ -101,12 +101,14 @@ int main(int argc, char* argv[]) {
 			std::cerr << "init failed" << std::endl;
 			return -1;
 		}
-		std::vector<SSupport> vtSupport;
-		suvc_get_support(&uvc, vtSupport);
+		SSupport support;
+		support.device = device;
+		suvc_get_support(&uvc, support);
 		suvc_close(&uvc);
 		cv::VideoCapture cam;
 		cam.open(device, cv::CAP_ANY);
-		full_fps(&cam, &vtSupport);
+		full_fps(&cam, &support);
+		cam.release();
 		return 0;
 	}
 

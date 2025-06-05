@@ -22,7 +22,7 @@ static void calc_fps(cv::VideoCapture &cam, SInfo &info) {
 }
 
 #define FRAME_COUNT 450
-static void calc_fps(cv::VideoCapture &cam, double rate = 0.0) {
+static void calc_fps(cv::VideoCapture &cam, int device = 0, double rate = 0.0) {
 	cv::Mat f;
 	std::cout << std::dec;
     int max_count = FRAME_COUNT;
@@ -37,7 +37,6 @@ static void calc_fps(cv::VideoCapture &cam, double rate = 0.0) {
         cam.read(f);
     }
 
-
 	uint64_t start_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 	for (int i = 0; i < max_count; i++) {
 		cam.read(f);
@@ -45,7 +44,11 @@ static void calc_fps(cv::VideoCapture &cam, double rate = 0.0) {
 	uint64_t end_time = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
 	long double fps = static_cast<long double>(max_count) / (static_cast<long double>(end_time- start_time) / 1000000.0);
-	std::cout << "fps: " << std::setprecision(10) << fps <<std::endl;
+	std::cout << "fps: " << std::setprecision(10) << fps;
+	if (rate > 0.0 && rate-fps > 1.0) {
+		std::cout << " ---- the real fps is less than the expectation over 1.0 ";
+	}
+	std::cout << std::endl;
 }
 
 int cv_fps(void *pCam, void *pInfo) {
@@ -99,7 +102,7 @@ int cv_fps(void *pCam, void *pInfo) {
 
 int full_fps(void *pCam, void *pSupport) {
 	cv::VideoCapture *cam = reinterpret_cast<cv::VideoCapture*>(pCam);
-	std::vector<SSupport> *support = reinterpret_cast<std::vector<SSupport> *>(pSupport);
+	SSupport *support = reinterpret_cast<SSupport *>(pSupport);
 	if (nullptr == cam || nullptr == support) {
 		return DEVICE_ERROR;
 	}
@@ -109,30 +112,21 @@ int full_fps(void *pCam, void *pSupport) {
 		return DEVICE_ERROR;		
 	}
 
-	for (std::vector<SSupport>::iterator p=support->begin(); p!=support->end(); p++) {
-		int ret = setCVFormat(*cam, p->szFmt);
+	for (mapSupport::iterator p = support->mapSup.begin(); p != support->mapSup.end(); p++) {
+		int ret = setCVFormat(*cam, p->first);
 		if (ret != SUCCESS) {
 			std::cerr << __FUNCTION__ << ":set cv format failed" << std::endl;
 			continue;
 		}
 
-		for (std::vector<std::string>::iterator q=p->vtRes.begin(); q!=p->vtRes.end(); q++) {
-			double rate;
-			std::string res;
-			std::tie(rate, res) = procFinalInfo(*q);
-            std::stringstream s;
-            s << std::hex << res;
-            uint32_t mix_res;
-            s >> mix_res;
-            int w = mix_res >> 16;
-            int h = mix_res & 0xffff;
-			ret = setCVRes(*cam, w, h);
+		for (std::vector<SRes>::iterator q = p->second.begin(); q != p->second.end(); q++) {
+			ret = setCVRes(*cam, q->w, q->h);
 			if (ret != SUCCESS) {
 				std::cerr << __FUNCTION__ << ":set cv res failed" << std::endl;
 				continue;
 			}
-			std::cout << std::dec << "calc " << p->szFmt << " " << w << " x " << h << ", rate = " << rate << " ... ";
-			calc_fps(*cam, rate);
+			std::cout << std::dec << "calc " << p->first << " " << q->w << " x " << q->h << ", rate = " << q->rate << " ... ";
+			calc_fps(*cam, support->device, q->rate);
 		}			
 	}
 

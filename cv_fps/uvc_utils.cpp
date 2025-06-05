@@ -69,35 +69,75 @@ int suvc_init(SUvc *uvc, int vid, int pid) {
     return SUVC_SUCCESS;
 }
 
-int suvc_get_support(SUvc *uvc, std::vector<SSupport> &vtSupport) {
+int suvc_get_support(SUvc *uvc, SSupport &support) {
     if (nullptr == uvc || nullptr == uvc->devh)
         return SUVC_ERROR;
 
-    vtSupport.clear();
-    
+    support.mapSup.clear();
+
     uvc_format_desc_t *format_desc = const_cast<uvc_format_desc_t*>(uvc_get_format_descs(uvc->devh));
     while (nullptr != format_desc) {
-        SSupport sup;
-        switch(format_desc->bDescriptorSubtype) {
-            case UVC_VS_FORMAT_MJPEG:
-                sup.szFmt = "mjpeg";
-                break;
-            default:
-                std::cout << "type: " << format_desc->bDescriptorSubtype << std::endl;
-                sup.szFmt = "yuv422";
-                break;
-        }
-        std::cout << "get format: " << sup.szFmt << std::endl;
+        SRes sres;
+		std::string szFmt;
+		if (format_desc->fourccFormat[0] == 'M' && format_desc->fourccFormat[1] == 'J' &&
+			format_desc->fourccFormat[2] == 'P' && format_desc->fourccFormat[3] == 'G') {
+			szFmt = "mjpeg";
+		}
+		else if (format_desc->fourccFormat[0] == 'N' && format_desc->fourccFormat[1] == 'V' &&
+				format_desc->fourccFormat[2] == '1' && format_desc->fourccFormat[3] == '2') {
+			szFmt = "nv12";
+		}
+		else if (format_desc->fourccFormat[0] == 'Y' && format_desc->fourccFormat[1] == 'U' &&
+				format_desc->fourccFormat[2] == 'Y' && format_desc->fourccFormat[3] == '2') {
+			szFmt = "yuv422";
+		}
+		else {
+			std::cout << "unsupport format: "
+					  << format_desc->fourccFormat[0]
+					  << format_desc->fourccFormat[1]
+					  << format_desc->fourccFormat[2]
+					  << format_desc->fourccFormat[3]
+					  << std::endl;
+			format_desc = format_desc->next;
+			continue;
+		}
+        std::cout << "get format: " << szFmt << std::endl;
+		mapSupport::iterator pFind = support.mapSup.find(szFmt);
+		if (pFind == support.mapSup.end()) {
+			std::vector<SRes> newvtRes;
+			support.mapSup.insert(pairRes(szFmt, newvtRes));
+			pFind = support.mapSup.find(szFmt);
+			if (pFind == support.mapSup.end()) {
+				std::cerr << "add new map key failed" << std::endl;
+				format_desc = format_desc->next;
+				continue;
+			}
+		}
         uvc_frame_desc_t *frame_desc = format_desc->frame_descs;
+
         while (nullptr != frame_desc) {
-			double rate = 10000000.0 / frame_desc->dwDefaultFrameInterval;
-            std::string r = genFinalInfo(rate, genRes(frame_desc->wWidth, frame_desc->wHeight));
-            if (!r.empty()) {
-                sup.vtRes.push_back(r);
-            }
-            frame_desc = frame_desc->next;
+			int interval_count = static_cast<int>(frame_desc->bFrameIntervalType);
+			if (0 == interval_count) {
+				double rate = 10000000.0 / frame_desc->dwDefaultFrameInterval;
+				SRes newRes;
+				newRes.w = frame_desc->wWidth;
+				newRes.h = frame_desc->wHeight;
+				newRes.rate = rate;
+				pFind->second.push_back(newRes);
+			}
+			else {
+				for (int i=0; i<interval_count; i++) {
+					double rate =  static_cast<double>(10000000.0) / frame_desc->intervals[i];
+					SRes newRes;
+					newRes.w = frame_desc->wWidth;
+					newRes.h = frame_desc->wHeight;
+					newRes.rate = rate;
+					pFind->second.push_back(newRes);
+				}
+			}
+			frame_desc = frame_desc->next;
         }
-        vtSupport.push_back(sup);
+
         format_desc = format_desc->next;
     }
 
@@ -156,7 +196,7 @@ int suvc_init(SUvc *uvc, int vid, int pid) {
 	return SUVC_SUCCESS;
 }
 
-int suvc_get_support(SUvc *uvc, std::vector<SSupport> &vtSupport) {
+int suvc_get_support(SUvc *uvc, SSupport &support) {
 	if (nullptr == uvc || nullptr == uvc->pEnum) {
 		std::cerr << __FUNCTION__ << " uvc pointer is null" << std::endl;
 		return SUVC_ERROR;	
@@ -218,32 +258,43 @@ int suvc_get_support(SUvc *uvc, std::vector<SSupport> &vtSupport) {
 					std::cerr << __FUNCTION__ << " get stream caps failed, find next!!" << std::endl;
 					continue;
 				}
-				SSupport sup;
-				//std::cout << "type: " << std::hex << pmt->subtype.Data1 << std::dec << std::endl;
-				//std::cout << "yuv: " << std::hex << MEDIASUBTYPE_YUY2.Data1 << std::dec << std::endl;
-				//std::cout <<  "mjpg: " << std::hex << MEDIASUBTYPE_MJPG.Data1 << std::dec << std::endl;
+				std::string szFmt;
 
 				if (FORMAT_VideoInfo == pmt->formattype) {
 					VIDEOINFOHEADER *info = reinterpret_cast<VIDEOINFOHEADER*>(pmt->pbFormat);
 					if (MEDIASUBTYPE_YUY2.Data1 == pmt->subtype.Data1) {
 					//if (MAKEFOURCC('Y','U','Y','2') == info->bmiHeader.biCompression) {
 						//std::cout << "get type yuv422" << std::endl;
-						sup.szFmt = "yuv422";
+						szFmt = "yuv422";
 					}
 					else if (MEDIASUBTYPE_MJPG.Data1 == pmt->subtype.Data1) {
 					//else if (MAKEFOURCC('M','J','P','G') == info->bmiHeader.biCompression) {
 						//std::cout << "get type mjpeg" << std::endl;
-						sup.szFmt = "mjpeg";
+						szFmt = "mjpeg";
 					}
 					else {
 						continue;
 					}
 					//std::cout << std::dec << "res: " << info->bmiHeader.biWidth << "x" << info->bmiHeader.biHeight << " " << genRes(static_cast<int>(info->bmiHeader.biWidth), static_cast<int>(info->bmiHeader.biHeight)) << std::endl;
+
+					mapSupport::iterator pFind = support.mapSup.find(szFmt);
+					if (pFind == support.mapSup.end()) {
+						std::vector<SRes> newvtRes;
+						support.mapSup.insert(pairRes(szFmt, newvtRes));
+						pFind = support.mapSup.find(szFmt);
+						if (pFind == support.mapSup.end()) {
+							std::cerr << "add new map key failed" << std::endl;
+							continue;
+						}
+					}
+					SRes newRes;
 					double rate = 0.0;
 					if (0 != info->AvgTimePerFrame)
 						rate = 10000000.0 / static_cast<double>(info->AvgTimePerFrame);
-					sup.vtRes.push_back(genFinalInfo(rate, genRes(static_cast<int>(info->bmiHeader.biWidth), static_cast<int>(info->bmiHeader.biHeight))));
-					vtSupport.push_back(sup);
+					newRes.w = static_cast<int>(info->bmiHeader.biWidth);
+					newRes.h = static_cast<int>(info->bmiHeader.biHeight);
+					nrwRes.rate = rate;
+					pFind->second.push_back(newRes);
 				}
 				if (pmt) {
 					if (0 != pmt->cbFormat) {
@@ -356,7 +407,7 @@ int suvc_init(SUvc *uvc, int vid, int pid) {
 	return SUVC_SUCCESS;
 }
 
-int suvc_get_support(SUvc *uvc, std::vector<SSupport> &vtSupport) {
+int suvc_get_support(SUvc *uvc, SSupport &support) {
 	if (nullptr == uvc) {
 		std::cerr << "uvc pointer is null" << std::endl;
 		return SUVC_ERROR;
@@ -433,21 +484,39 @@ int suvc_get_support(SUvc *uvc, std::vector<SSupport> &vtSupport) {
 			}
 
 			pType->GetGUID(MF_MT_SUBTYPE, &Type);
-			SSupport sup;
+			std::string szFmt;
 			if (MFVideoFormat_MJPG == Type) {
-				sup.szFmt = "mjpeg";
+				szFmt = "mjpeg";
 			}
 			else if (MFVideoFormat_YUY2 == Type) {
-				sup.szFmt = "yuv422";
+				szFmt = "yuv422";
+			}
+			else if (MFVideoFormat_NV12 == Type) {
+				szFmt = "nv12";
+			}
+
+			mapSupport::iterator pFind = support.mapSup.find(szFmt);
+			if (pFind == support.mapSup.end()) {
+				std::vector<SRes> newvtRes;
+				support.mapSup.insert(pairRes(szFmt, newvtRes));
+				pFind = support.mapSup.find(szFmt);
+				if (pFind == support.mapSup.end()) {
+					std::cerr << "add new map key failed" << std::endl;
+					index++;
+					continue;
+				}
 			}
 
 			UINT32 w=0, h=0, numerator=0, denominator=0;
 			MFGetAttributeSize(pType, MF_MT_FRAME_SIZE, &w, &h);
 			MFGetAttributeRatio(pType, MF_MT_FRAME_RATE, &numerator, &denominator);
 
+			SRes newRes;
 			double rate = static_cast<double>(numerator) / static_cast<double>(denominator);
-			sup.vtRes.push_back(genFinalInfo(rate, genRes(static_cast<int>(w), static_cast<int>(h))));
-			vtSupport.push_back(sup);
+			newRes.w = w;
+			newRes.h = h;
+			newRes.rate = rate;
+			pFind->second.push_back(newRes);
 
 			pType->Release();
 			index++;
@@ -508,22 +577,13 @@ int suvc_list(void *pVid, void *pPid) {
         std::cerr << "init failed" << std::endl;
         return -1;
     }
-    std::vector<SSupport> vtSupport;
-    suvc_get_support(&uvc, vtSupport);
+    SSupport support;
+    suvc_get_support(&uvc, support);
     suvc_close(&uvc);
-    for (std::vector<SSupport>::iterator p=vtSupport.begin(); p != vtSupport.end(); p++) {
-        std::cout << "format: " << p->szFmt << std::endl;
-        for (std::vector<std::string>::iterator r=p->vtRes.begin(); r != p->vtRes.end(); r++) {
-			double rate;
-			std::string res;
-			std::tie(rate, res) = procFinalInfo(*r);
-            std::stringstream s;
-            s << std::hex << res;
-            uint32_t mix_res;
-            s >> mix_res;
-            int w = mix_res >> 16;
-            int h = mix_res & 0xffff;
-            std::cout << "\t res: " << std::dec << w << ", " << h << ", rate: " << rate << std::endl;
+    for (mapSupport::iterator p = support.mapSup.begin(); p != support.mapSup.end(); p++) {
+        std::cout << "format: " << p->first << std::endl;
+        for (std::vector<SRes>::iterator r = p->second.begin(); r != p->second.end(); r++) {
+            std::cout << "\t res: " << std::dec << r->w << ", " << r->h << ", rate: " << r->rate << std::endl;
         }
     }
     return SUVC_SUCCESS;
