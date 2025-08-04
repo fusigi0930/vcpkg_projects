@@ -26,6 +26,7 @@ struct SInfo {
 typedef int (*cv_funcs) (void *, void *);
 int cv_fps(void *pCam, void *pInfo);
 int full_fps(void *pCam, void *pSupport);
+int go_fps(void *pCam, void *pSupport);
 
 int setCVRes(cv::VideoCapture &cam, std::string res);
 int setCVRes(cv::VideoCapture &cam, int width, int height);

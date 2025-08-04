@@ -67,6 +67,7 @@ typedef std::pair<std::string, std::vector<SRes> > pairRes;
 struct SSupport {
 	int device;
 	mapSupport mapSup;
+	bool bAdbreboot;
 };
 
 int suvc_init(SUvc *uvc, int vid, int pid);

@@ -133,6 +133,61 @@ int full_fps(void *pCam, void *pSupport) {
 	return SUCCESS;
 }
 
+int go_fps(void *pCam, void *pSupport) {
+	cv::VideoCapture cam;
+	SSupport *support = reinterpret_cast<SSupport *>(pSupport);
+	if (nullptr == support) {
+		return DEVICE_ERROR;
+	}
+
+	for (mapSupport::iterator p = support->mapSup.begin(); p != support->mapSup.end(); p++) {
+		// collect fps info
+		typedef std::map<double, std::vector<SRes> > _mapRes;
+		_mapRes mapRes;
+		for (std::vector<SRes>::iterator q = p->second.begin(); q != p->second.end(); q++) {
+			_mapRes::iterator pRes = mapRes.find(q->rate);
+			if (pRes != mapRes.end()) {
+				pRes->second.push_back(*q);
+			}
+			else {
+				std::vector<SRes> vt;
+				vt.push_back(*q);
+				mapRes[q->rate] = vt;
+			}
+		}
+
+		for (_mapRes::iterator pRes = mapRes.begin(); pRes != mapRes.end(); pRes++) {
+			cam.open(support->device, cv::CAP_ANY);
+			if (!cam.isOpened()) {
+				std::cerr << "open camera failed" << std::endl;
+				return DEVICE_ERROR;		
+			}
+
+			int ret = setCVFormat(cam, p->first);
+			if (ret != SUCCESS) {
+				std::cerr << __FUNCTION__ << ":set cv format failed" << std::endl;
+				continue;
+			}
+			cam.set(cv::CAP_PROP_FPS, pRes->first);
+			for (std::vector<SRes>::iterator q = pRes->second.begin(); q != pRes->second.end(); q++) {
+				ret = setCVRes(cam, q->w, q->h);
+				if (ret != SUCCESS) {
+					std::cerr << __FUNCTION__ << ":set cv res failed" << std::endl;
+					continue;
+				}
+				std::cout << std::dec << "calc " << p->first << " " << q->w << " x " << q->h << ", rate = " << q->rate << " ... ";
+				calc_fps(cam, support->device, q->rate);
+			}
+			cam.release();
+		}
+
+		
+	}
+	
+	cam.release();
+
+	return SUCCESS;
+}
 
 # if 0
 int main(int argc, char* argv[]) {

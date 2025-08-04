@@ -60,6 +60,16 @@ int main(int argc, char* argv[]) {
 		.default_value(false)
 		.help("run full fps");
 
+	args.add_argument("--go_fps")
+		.implicit_value(true)
+		.default_value(false)
+		.help("run full fps");
+
+	args.add_argument("--adbreboot")
+		.implicit_value(true)
+		.default_value(false)
+		.help("send adb reboot");
+
 	try {
 		args.parse_args(argc, argv);
 	}
@@ -77,6 +87,9 @@ int main(int argc, char* argv[]) {
 	info.type = args.get<std::string>("--type");
 	int count = args.get<int>("--count");
 	int close = args.get<int>("--close");
+
+	bool bgo_fps = args.get<bool>("--go_fps");
+	bool badbreboot = args.get<bool>("--adbreboot");
 
 	std::stringstream s;
 	s << std::hex << args.get<std::string>("--vid");
@@ -110,6 +123,21 @@ int main(int argc, char* argv[]) {
 		full_fps(&cam, &support);
 		cam.release();
 		return 0;
+	}
+
+	if (bgo_fps) {
+		std::cout << "find uvc device: " << std::hex << vid << ":" << std::hex << pid << std::endl;
+	    SUvc uvc = {0}; 
+		if (SUVC_SUCCESS != suvc_init(&uvc, vid, pid)) {
+			std::cerr << "init failed" << std::endl;
+			return -1;
+		}
+		SSupport support;
+		support.device = device;
+		suvc_get_support(&uvc, support);
+		suvc_close(&uvc);
+		support.bAdbreboot = badbreboot;
+		go_fps(nullptr, &support);
 	}
 
 	if (mapFuncs.find(args.get<std::string>("--function")) == mapFuncs.end()) {
